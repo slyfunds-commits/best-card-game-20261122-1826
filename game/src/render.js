@@ -201,7 +201,7 @@ export function createRenderer(canvas) {
     text(`COMBO x${Math.max(1, state.combo)}`, 800, 31, 20, comboColor, 'left', true);
     text(`DECK ${state.deckCount}`, 960, 31, 18, PALETTE.muted, 'left');
     text(`DISCARD ${state.discardCount}`, 1070, 31, 18, PALETTE.muted, 'left');
-    text(MODES[state.mode].name, 1210, 31, 18, PALETTE.gold, 'left', true);
+    text(MODES[state.mode].name, 1264, 31, 18, PALETTE.gold, 'right', true);
     text(goalLine(), FIELD.width / 2, 66, 15, PALETTE.muted, 'center');
   }
 
@@ -337,6 +337,7 @@ export function createRenderer(canvas) {
     }
     text('WIN: take 2 rounds before your life hits 0 · LOSE: your life hits 0', FIELD.width / 2, 520, 17, PALETTE.cream, 'center');
     text('Play a higher card — or counter her suit for +4. Chain your suits. Flush for +100.', FIELD.width / 2, 548, 16, PALETTE.muted, 'center');
+    text('AFTER EACH ROUND: DRAFT 1 OF 3 — NEW CARD · RELIC · +LIFE', FIELD.width / 2, 578, 16, PALETTE.gold, 'center', true);
     const pulse = 0.65 + 0.35 * Math.sin(state.time * 3);
     ctx.globalAlpha = pulse;
     text('CLICK A MODE, OR PRESS 1 / 2 — THEN ENTER TO BEGIN', FIELD.width / 2, 610, 20, PALETTE.gold, 'center', true);

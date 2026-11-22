@@ -41,18 +41,54 @@ function playTricks(driver, style, cap) {
 export function stageShot(name, driver, seed) {
   const state = driver.state;
   if (name === 'play') {
-    driver.newMatch('classic');
-    playTricks(driver, 'best', 6);
-    if (driver.state.screen === 'draft') driver.chooseDraft(0);
-    playTricks(driver, 'best', 1);
-    // One more card on the table, unrevealed: both cards face up in their
-    // slots, the combo and the last "+points" popup still hanging in the frame.
-    // Four cards stay in hand, so the frame reads as mid-game, not end-game.
+    // Hunt a genuine payoff frame: a flush the player just landed with a
+    // real combo behind it, then one more card led in the flush suit.
+    // Popups never fade in a staged frame (the live loop steps them;
+    // staging does not), so only the final trick's popups are kept — older
+    // tricks' popups stack and read as a glitch. A match can end before
+    // the frame appears, so retry with fresh matches; the random stream
+    // advances, so each attempt deals a different game. Tier 1 wants
+    // combo ≥ 2; tier 2 takes any flush.
+    const hunt = (minCombo) => {
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        driver.newMatch('classic');
+        for (let i = 0; i < 18 && driver.state.screen === 'play'; i += 1) {
+          const before = driver.state.popups.length;
+          if (!driver.playAuto('best')) break;
+          // Check the flush FIRST: a flush on the round's last trick flips
+          // the screen to draft before it can be staged, so it is lost —
+          // only a mid-round flush is stageable, and that is what we want.
+          if (driver.state.combo >= minCombo && /FLUSH — 3 IN A ROW!$/.test(driver.state.callout)
+              && driver.state.screen === 'play' && driver.state.phase === 'await') {
+            driver.state.popups = driver.state.popups.slice(before);
+            return true;
+          }
+          if (driver.state.screen === 'draft') { driver.chooseDraft(0); continue; }
+          if (driver.state.screen !== 'play') break;
+          driver.state.popups = driver.state.popups.slice(-2);
+        }
+      }
+      return false;
+    };
+    let staged = hunt(2) || hunt(1);
+    if (!staged) {
+      // Fallback: a plain winning-trick frame from a fresh match.
+      driver.newMatch('classic');
+      for (let i = 0; i < 12 && driver.state.screen === 'play'; i += 1) {
+        if (!driver.playAuto('best')) break;
+        if (driver.state.screen === 'draft') { driver.chooseDraft(0); continue; }
+        if (driver.state.screen !== 'play') break;
+        if (driver.state.combo >= 1 && !/^The Queen takes it/.test(driver.state.callout)) break;
+      }
+      driver.state.popups = driver.state.popups.slice(-2);
+    }
     if (driver.state.screen === 'play' && driver.state.phase === 'await') {
-      driver.play(bestIndex(state));
-      // Preview her next intent so the telegraph line is live in the frame.
+      const suit = driver.state.lastSuit;
+      const idx = staged ? driver.state.hand.findIndex((c) => c.suit === suit) : bestIndex(state);
+      driver.play(idx >= 0 ? idx : bestIndex(state));
       state.intent = rivalIntent(state, createRandom((seed || 7) + 101));
     }
+    driver.state.message = '';
     driver.snap();
     return { screen: SCREEN_PLAY, bests: DEMO_BESTS };
   }

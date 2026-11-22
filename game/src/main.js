@@ -426,6 +426,7 @@ const driver = {
 function runShot(name) {
   const scene = stageShot(name, driver, seed);
   window.__shotScreen = scene.screen;
+  window.__ember = { state, driver, screen: () => state.screen };
   let painted = 0;
   function paint() {
     renderer.draw(state, scene.screen, scene.bests);
