@@ -1,3 +1,7 @@
+// Ember Court — entrypoint for our hand-in: it stages game/ and screenshots/ into /output
+// and writes dossier.json through buildDossier, so the judge receives the full court,
+// its screenshots, and the summary in one sealed bundle.
+// (Header added for the Ember Court entry; the staging logic below is the kit's own.)
 // A working best-game-01 entry (Node 22, standard library only): the game is this directory's
 // game/ folder, plain static files a desktop browser loads offline (game/index.html and its ES
 // modules, no library and no network request), and the program hands it in. It copies game/ and
