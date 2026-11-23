@@ -48,9 +48,12 @@ export function stageShot(name, driver, seed) {
     // tricks' popups stack and read as a glitch. A match can end before
     // the frame appears, so retry with fresh matches; the random stream
     // advances, so each attempt deals a different game. Tier 1 wants
-    // combo ≥ 2; tier 2 takes any flush.
-    const hunt = (minCombo) => {
-      for (let attempt = 0; attempt < 12; attempt += 1) {
+    // combo ≥ 2; tier 2 takes any flush. MEASURED (2026-11-22, 60 attempts):
+    // a combo ≥ 2 flush shows in only ~8% of attempts, so 12 tries failed
+    // 37% of the time — round 2's cover shipped combo x1. 80 tries makes
+    // tier 1 near-certain (~0.1% miss).
+    const hunt = (minCombo, tries) => {
+      for (let attempt = 0; attempt < tries; attempt += 1) {
         driver.newMatch('classic');
         for (let i = 0; i < 18 && driver.state.screen === 'play'; i += 1) {
           const before = driver.state.popups.length;
@@ -70,7 +73,7 @@ export function stageShot(name, driver, seed) {
       }
       return false;
     };
-    let staged = hunt(2) || hunt(1);
+    let staged = hunt(2, 80) || hunt(1, 30);
     if (!staged) {
       // Fallback: a plain winning-trick frame from a fresh match.
       driver.newMatch('classic');
@@ -95,13 +98,34 @@ export function stageShot(name, driver, seed) {
   if (name === 'loss' || name === 'win') {
     const style = name === 'win' ? 'best' : 'worst';
     const want = name === 'win' ? SCREEN_WIN : SCREEN_LOSS;
-    driver.newMatch('classic');
-    let guard = 0;
-    while (driver.state.screen !== want && guard < 300) {
-      guard += 1;
-      if (driver.state.screen === 'play') playTricks(driver, style, 6);
-      else if (driver.state.screen === 'draft') driver.chooseDraft(0);
-      else break;
+    // A win must show at least one flush: the scorecard footer prints
+    // FLUSHES from the match stats, and round 2's win showed FLUSHES 0.
+    // MEASURED (2026-11-22, 20 matches): 'best' wins 16/20, but only 3/20
+    // wins carry a flush — so retry fresh matches (30 tries, ~1% miss) and
+    // keep the first win as a snapshot fallback in case none does. The
+    // state is plain data, so structuredClone keeps the fallback intact
+    // while later matches overwrite it.
+    const playMatch = () => {
+      driver.newMatch('classic');
+      let guard = 0;
+      while (driver.state.screen !== want && guard < 300) {
+        guard += 1;
+        if (driver.state.screen === 'play') playTricks(driver, style, 6);
+        else if (driver.state.screen === 'draft') driver.chooseDraft(0);
+        else break;
+      }
+      return driver.state.screen === want;
+    };
+    let fallback = null;
+    if (name === 'win') {
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        if (!playMatch()) break;
+        if (!fallback) fallback = structuredClone(driver.state);
+        if (driver.state.stats.flushes >= 1) { fallback = null; break; }
+      }
+      if (fallback) Object.assign(driver.state, fallback);
+    } else {
+      playMatch();
     }
     driver.snap();
     // Make the scorecard coherent: a win beats the shown BEST, a loss does not.
