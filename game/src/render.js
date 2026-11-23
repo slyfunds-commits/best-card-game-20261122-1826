@@ -209,9 +209,29 @@ export function createRenderer(canvas) {
     const phase = rivalPhase(state.round);
     text(RIVAL.name, 16, 96, 22, '#ff8a5c', 'left', true);
     text(phase.name, 16, 118, 15, PALETTE.gold, 'left');
+    // Boss bar: phase pips (●●○) + the phase bonus, so the rival reads as a boss.
+    for (let i = 0; i < 3; i += 1) {
+      const cx = 176 + i * 16;
+      ctx.beginPath();
+      ctx.arc(cx, 113, 5, 0, Math.PI * 2);
+      if (i < phase.number) {
+        ctx.fillStyle = PALETTE.gold;
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = PALETTE.dim;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+    text(`BONUS +${phase.bonus}`, 224, 118, 14, PALETTE.gold, 'left', true);
     text(phase.note, 16, 138, 13, PALETTE.dim, 'left');
     text('LIFE', 300, 96, 14, PALETTE.muted, 'left');
     hearts(300, 104, state.lives.rival, 3, '#ff5a4e');
+    // HP bar under the hearts: rival lives as a red bar.
+    ctx.fillStyle = '#4a2c1c';
+    ctx.fillRect(300, 120, 72, 6);
+    ctx.fillStyle = '#ff5a4e';
+    ctx.fillRect(300, 120, Math.max(0, 72 * (state.lives.rival / 3)), 6);
     text(`ROUNDS ${state.roundsWon.rival}`, 300, 140, 14, PALETTE.muted, 'left');
     // Her hand: face-down backs, fanned.
     for (let i = 0; i < state.rivalHand.length; i += 1) {
@@ -247,7 +267,38 @@ export function createRenderer(canvas) {
     text('FLUSH: 3 same suit = +100', 1016, y + 58, 13, PALETTE.cream, 'left');
     text('COMBO: win tricks in a row', 1016, y + 82, 13, PALETTE.cream, 'left');
     text('to grow the xN multiplier', 1016, y + 100, 13, PALETTE.cream, 'left');
-    if (state.draftPick) text(`BOON: ${state.draftPick}`, 1016, y + 128, 13, PALETTE.gold, 'left', true);
+    // The old one-line BOON note lived here; the relics roster below names every pick.
+  }
+
+  /** RELICS & BOONS roster + COURT GOALS checklist, in the empty right column. */
+  function drawRelicsAndGoals(state) {
+    const relics = [
+      { key: 'sigil', held: state.relic === 'sigil', line: 'EMBER SIGIL — +15% pts' },
+      { key: 'ward', held: state.ward, line: 'THORN WARD — eats bonus' },
+      { key: 'charm', held: state.charm, line: 'CHAIN CHARM — +50%/step' },
+      { key: 'draw', held: state.handBonus > 0, line: 'DRAW +2 — 8-card hand' },
+      { key: 'life', held: state.draftPick === '+1 LIFE', line: '+1 LIFE — mend a heart' },
+    ];
+    const heldCount = relics.filter((r) => r.held).length;
+    panel(1000, 498, 264, 196);
+    text(`RELICS & BOONS ${heldCount}/5`, 1016, 518, 15, PALETTE.gold, 'left', true);
+    for (let i = 0; i < relics.length; i += 1) {
+      const relic = relics[i];
+      const y = 538 + i * 16;
+      if (relic.held) text(`✓ ${relic.line}`, 1016, y, 13, PALETTE.gold, 'left', true);
+      else text(`· ${relic.line}`, 1016, y, 13, PALETTE.dim, 'left');
+    }
+    ctx.strokeStyle = PALETTE.panelEdge;
+    ctx.beginPath();
+    ctx.moveTo(1016, 614);
+    ctx.lineTo(1248, 614);
+    ctx.stroke();
+    text('COURT GOALS', 1016, 634, 15, PALETTE.gold, 'left', true);
+    const flushDone = state.stats.flushes > 0;
+    const chainDone = state.combo >= 3;
+    text(`FLUSH 3 IN A ROW — ${flushDone ? '✓' : '—'}`, 1016, 653, 13, flushDone ? PALETTE.gold : PALETTE.cream, 'left', flushDone);
+    text(`CHAIN x3 — ${chainDone ? '✓' : '—'}`, 1016, 669, 13, chainDone ? PALETTE.gold : PALETTE.cream, 'left', chainDone);
+    text(`TAKE 2 ROUNDS — ${state.roundsWon.you}/2`, 1016, 685, 13, PALETTE.cream, 'left');
   }
 
   function drawTable(state) {
@@ -274,6 +325,17 @@ export function createRenderer(canvas) {
       ctx.globalAlpha = Math.max(0, 1 - popup.t / popup.life);
       text(popup.text, popup.x, popup.y, 24, popup.color, 'center', true);
       ctx.globalAlpha = 1;
+    }
+    // Top discard card, face up, at the table's right edge.
+    text('DISCARD', 914, 222, 13, PALETTE.dim, 'center', true);
+    if (state.piles && state.piles.discard && state.piles.discard.length > 0) {
+      const top = state.piles.discard[state.piles.discard.length - 1];
+      const shown = { ...top, x: 884, y: 232, face: 1 };
+      drawCard(shown, 60, 88);
+      text(`${state.piles.discard.length} CARDS`, 914, 340, 13, PALETTE.muted, 'center');
+    } else {
+      drawCardBack(884, 232, 60, 88);
+      text('EMPTY', 914, 340, 13, PALETTE.muted, 'center');
     }
     // Your life, under the table.
     text('YOUR LIFE', 40, 446, 14, PALETTE.muted, 'left');
@@ -309,7 +371,7 @@ export function createRenderer(canvas) {
     ctx.strokeRect(10, 10, FIELD.width - 20, FIELD.height - 20);
     text('EMBER COURT', FIELD.width / 2, 150, 76, PALETTE.gold, 'center', true);
     text('A duel of 4 suits against THE CINDER QUEEN', FIELD.width / 2, 192, 22, PALETTE.cream, 'center');
-    text('4 SUITS · 3 ROUNDS · 48 CARDS · 3-PHASE RIVAL · 2 MODES', FIELD.width / 2, 232, 20, PALETTE.gold, 'center', true);
+    text('4 SUITS · 3 ROUNDS · 48 CARDS · 3-PHASE RIVAL · 5 DRAFT RELICS · 2 MODES', FIELD.width / 2, 232, 20, PALETTE.gold, 'center', true);
     // Suits legend row: four centred blocks, glyph over name over rule.
     for (let i = 0; i < SUIT_KEYS.length; i += 1) {
       const suit = SUITS[SUIT_KEYS[i]];
@@ -338,11 +400,12 @@ export function createRenderer(canvas) {
     text('WIN: take 2 rounds before your life hits 0 · LOSE: your life hits 0', FIELD.width / 2, 520, 17, PALETTE.cream, 'center');
     text('Play a higher card — or counter her suit for +4. Chain your suits. Flush for +100.', FIELD.width / 2, 548, 16, PALETTE.muted, 'center');
     text('AFTER EACH ROUND: DRAFT 1 OF 3 — NEW CARD · RELIC · +LIFE', FIELD.width / 2, 578, 16, PALETTE.gold, 'center', true);
+    text('RELICS: EMBER SIGIL · THORN WARD · CHAIN CHARM · DRAW +2 · +1 LIFE', FIELD.width / 2, 604, 16, PALETTE.gold, 'center', true);
     const pulse = 0.65 + 0.35 * Math.sin(state.time * 3);
     ctx.globalAlpha = pulse;
-    text('CLICK A MODE, OR PRESS 1 / 2 — THEN ENTER TO BEGIN', FIELD.width / 2, 610, 20, PALETTE.gold, 'center', true);
+    text('CLICK A MODE, OR PRESS 1 / 2 — THEN ENTER TO BEGIN', FIELD.width / 2, 626, 20, PALETTE.gold, 'center', true);
     ctx.globalAlpha = 1;
-    text('The Queen telegraphs every card she will play. Read her. Counter her.', FIELD.width / 2, 650, 15, PALETTE.dim, 'center');
+    text('The Queen telegraphs every card she will play. Read her. Counter her.', FIELD.width / 2, 660, 15, PALETTE.dim, 'center');
   }
 
   function drawDraft(state) {
@@ -382,6 +445,24 @@ export function createRenderer(canvas) {
     ctx.strokeRect(14, 14, FIELD.width - 28, FIELD.height - 28);
     ctx.globalAlpha = 1;
     if (won) {
+      // Frozen flourish: fixed confetti dots (deterministic — no random per frame).
+      const confetti = [
+        [80, 40, 4, 0], [160, 30, 3, 1], [240, 52, 4, 2], [320, 34, 3, 0], [420, 44, 4, 1], [520, 30, 3, 0],
+        [620, 48, 4, 2], [720, 32, 3, 1], [820, 46, 4, 0], [920, 34, 3, 2], [1020, 44, 4, 1], [1120, 30, 3, 0],
+        [1200, 52, 4, 2], [120, 64, 3, 1], [380, 66, 4, 0], [700, 68, 3, 1], [980, 64, 4, 0], [60, 90, 3, 2],
+        [1240, 88, 3, 1], [200, 76, 3, 0], [560, 74, 4, 1], [860, 76, 3, 0], [1100, 72, 4, 1], [40, 130, 3, 0],
+        [1240, 130, 3, 2], [120, 160, 4, 0], [220, 190, 3, 1], [80, 210, 4, 2], [1080, 160, 3, 0], [1180, 190, 4, 1],
+        [1000, 210, 3, 2], [300, 150, 3, 0], [980, 150, 4, 1], [60, 400, 3, 0], [120, 440, 4, 1], [1220, 400, 3, 2],
+        [1160, 440, 4, 0],
+      ];
+      const confettiColors = [PALETTE.gold, PALETTE.cream, '#ff6b35'];
+      for (const dot of confetti) {
+        ctx.fillStyle = confettiColors[dot[3]];
+        ctx.beginPath();
+        ctx.arc(dot[0], dot[1], dot[2], 0, Math.PI * 2);
+        ctx.fill();
+      }
+      drawGlyph(ctx, 'spark', FIELD.width / 2, 62, 18, PALETTE.gold);
       text('THE COURT IS YOURS!', FIELD.width / 2, 130, 58, PALETTE.gold, 'center', true);
       text('The Cinder Queen bows — her crown is yours.', FIELD.width / 2, 172, 20, PALETTE.cream, 'center');
     } else {
@@ -395,6 +476,21 @@ export function createRenderer(canvas) {
         drawCard(state.rivalLastHand[i], 72, 104);
       }
     }
+    // Your winning hand, face up, on the win screen: the last four cards YOU
+    // played, recovered from the discard pile in play order (you, rival, you,
+    // rival — every resolved trick discards both cards, so your last four are
+    // the pile's last eight at even offsets). The hand is empty at match end
+    // (all cards are played each round), so state.hand cannot supply it.
+    if (won && state.piles && state.piles.discard && state.piles.discard.length >= 8) {
+      const disc = state.piles.discard;
+      const youCards = [disc[disc.length - 8], disc[disc.length - 6], disc[disc.length - 4], disc[disc.length - 2]];
+      text('YOUR WINNING HAND', FIELD.width / 2, 214, 16, PALETTE.gold, 'center', true);
+      const totalW = youCards.length * 72 + (youCards.length - 1) * 6;
+      for (let i = 0; i < youCards.length; i += 1) {
+        const shown = { ...youCards[i], x: 640 - totalW / 2 + i * 78, y: 226, face: 1 };
+        drawCard(shown, 72, 104);
+      }
+    }
     const stats = [
       ['SCORE', String(state.score)],
       ['BEST', String(best)],
@@ -403,7 +499,7 @@ export function createRenderer(canvas) {
       ['MODE', MODES[state.mode].name],
       ['CARDS PLAYED', String(state.stats.cardsPlayed)],
     ];
-    const y0 = won ? 240 : 380;
+    const y0 = 380;
     for (let i = 0; i < stats.length; i += 1) {
       const bx = 190 + (i % 3) * 320;
       const by = y0 + Math.floor(i / 3) * 110;
@@ -451,6 +547,7 @@ export function createRenderer(canvas) {
     drawRivalRow(state);
     drawTable(state);
     drawLegend(state);
+    drawRelicsAndGoals(state);
     drawMessage(state);
     drawHand(state);
     if (screen === SCREEN_PAUSED) drawPaused();
