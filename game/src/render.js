@@ -173,7 +173,10 @@ export function createRenderer(canvas) {
     drawGlyph(ctx, suit.glyph, dx + 22, card.y + 52, 11, suit.color);
     drawGlyph(ctx, suit.glyph, dx + dw / 2, card.y + h / 2 + 8, 26, suit.color);
     text(suit.name, dx + dw / 2, card.y + h - 12, 13, suit.dark, 'center', true);
-    if (dw >= 92) text(String(card.value), dx + dw - 10, card.y + h - 10, 20, suit.dark, 'right', true);
+    // The corner value shares the suit name's baseline: on a 10 or 11 it
+    // collides with it ("EMBE10"). Single digits are narrow enough to sit
+    // clear; two-digit values are already shown top-left.
+    if (dw >= 92 && String(card.value).length === 1) text(String(card.value), dx + dw - 10, card.y + h - 10, 20, suit.dark, 'right', true);
   }
 
   function drawSlot(x, y, w, h, label) {
@@ -341,7 +344,14 @@ export function createRenderer(canvas) {
     text('YOUR LIFE', 40, 446, 14, PALETTE.muted, 'left');
     hearts(40, 454, state.lives.you, 3, '#4ade80');
     text(`ROUNDS ${state.roundsWon.you}`, 200, 446, 14, PALETTE.muted, 'left');
-    text(state.phase === 'reveal' ? 'The trick is on the table…' : 'YOUR TURN — play a card', 491, 458, 16, PALETTE.cream, 'center', true);
+    // The Queen talks back in the still: a phase-tied taunt while the trick
+    // is revealed, naming the threat of the phase she is in.
+    const taunts = {
+      1: "The Queen: 'Show me your suits.'",
+      2: "The Queen: 'Your chains feed my fire.'",
+      3: "The Queen: 'I counter your last suit.'",
+    };
+    text(state.phase === 'reveal' ? (taunts[state.round] || 'The trick is on the table…') : 'YOUR TURN — play a card', 491, 458, 16, PALETTE.cream, 'center', true);
   }
 
   function drawHand(state) {
@@ -361,6 +371,28 @@ export function createRenderer(canvas) {
   function drawMessage(state) {
     if (!state.message) return;
     text(state.message, FIELD.width / 2, 500 - 8, 17, PALETTE.muted, 'center');
+  }
+
+  /** The draft, made visible: the pick-1-of-3 boons as cards on the title shot.
+   * The draft screen exists in the game but appears in no screenshot; the
+   * title only described it in one line. The three relic boons below are the
+   * same names and effects the draft screen offers (draft.js DRAFTS). */
+  function drawDraftStrip() {
+    const boons = [
+      { key: '1', name: 'EMBER SIGIL', effect: 'All points +15% — rest of match', glyph: 'flame', color: '#ff6b35' },
+      { key: '2', name: 'THORN WARD', effect: "Queen's phase bonus eaten", glyph: 'leaf', color: '#4ade80' },
+      { key: '3', name: 'CHAIN CHARM', effect: 'Chains pay +50% a step', glyph: 'spark', color: '#f2c94c' },
+    ];
+    text('AFTER EACH ROUND — DRAFT 1 OF 3 BOONS', FIELD.width / 2, 570, 16, PALETTE.gold, 'center', true);
+    for (let i = 0; i < boons.length; i += 1) {
+      const boon = boons[i];
+      const bx = 190 + i * 320;
+      panel(bx, 584, 280, 58);
+      text(boon.key, bx + 14, 606, 14, PALETTE.dim, 'left', true);
+      drawGlyph(ctx, boon.glyph, bx + 36, 613, 11, boon.color);
+      text(boon.name, bx + 152, 608, 17, PALETTE.gold, 'center', true);
+      text(boon.effect, bx + 152, 630, 12, PALETTE.cream, 'center');
+    }
   }
 
   function drawTitle(state, bests) {
@@ -399,13 +431,11 @@ export function createRenderer(canvas) {
     }
     text('WIN: take 2 rounds before your life hits 0 · LOSE: your life hits 0', FIELD.width / 2, 520, 17, PALETTE.cream, 'center');
     text('Play a higher card — or counter her suit for +4. Chain your suits. Flush for +100.', FIELD.width / 2, 548, 16, PALETTE.muted, 'center');
-    text('AFTER EACH ROUND: DRAFT 1 OF 3 — NEW CARD · RELIC · +LIFE', FIELD.width / 2, 578, 16, PALETTE.gold, 'center', true);
-    text('RELICS: EMBER SIGIL · THORN WARD · CHAIN CHARM · DRAW +2 · +1 LIFE', FIELD.width / 2, 604, 16, PALETTE.gold, 'center', true);
+    drawDraftStrip();
     const pulse = 0.65 + 0.35 * Math.sin(state.time * 3);
     ctx.globalAlpha = pulse;
-    text('CLICK A MODE, OR PRESS 1 / 2 — THEN ENTER TO BEGIN', FIELD.width / 2, 626, 20, PALETTE.gold, 'center', true);
+    text('CLICK A MODE, OR PRESS 1 / 2 — THEN ENTER TO BEGIN', FIELD.width / 2, 670, 20, PALETTE.gold, 'center', true);
     ctx.globalAlpha = 1;
-    text('The Queen telegraphs every card she will play. Read her. Counter her.', FIELD.width / 2, 660, 15, PALETTE.dim, 'center');
   }
 
   function drawDraft(state) {
